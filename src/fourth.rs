@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use std::cell::RefCell;
+use std::cell::{ Ref, RefCell };
 
 pub struct List<T> {
     head: Link<T>,
@@ -56,7 +56,58 @@ impl<T> List<T> {
                     self.tail.take();
                 }
             }
-            old_head.borrow_mut().elem
+            Rc::try_unwrap(old_head).ok().unwrap().into_inner().elem
         })
+    }
+
+    pub fn peek_front(&self) -> Option<Ref<'_, T>> {
+        self.head.as_ref().map(|node| {
+            Ref::map(node.borrow(), |node| &node.elem)
+        })
+    }
+}
+
+impl<T> Drop for List<T> {
+    fn drop(&mut self) {
+        while self.pop_front().is_some() {}
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::List;
+    #[test]
+    fn basics() {
+        let mut list = List::new();
+
+        assert_eq!(list.pop_front(), None);
+
+        list.push_front(1);
+        list.push_front(2);
+        list.push_front(3);
+
+        // check pop on non-empty list
+        assert_eq!(list.pop_front(), Some(3));
+        assert_eq!(list.pop_front(), Some(2));
+
+        // push more elements
+        list.push_front(4);
+        list.push_front(5);
+
+        assert_eq!(list.pop_front(), Some(5));
+        assert_eq!(list.pop_front(), Some(4));
+
+        assert_eq!(list.pop_front(), Some(1));
+        assert_eq!(list.pop_front(), None);
+    }
+
+    #[test]
+    fn peek_front() {
+        let mut list = List::new();
+
+        assert!(list.peek_front().is_none());
+        list.push_front(1); list.push_front(2); list.push_front(3);
+
+        assert_eq!(&*list.peek_front().unwrap(), &3);
     }
 }
